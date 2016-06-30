@@ -52,8 +52,10 @@ struct PersistentSystemOptions final
   bool hasMouseKeysHotkey;
   bool hasStickyKeysHotkey;
   bool hasToggleKeysHotkey;
-  bool hasHighContrastHotkey;
   bool hasFastBootHotKey;
+  bool hasHighContrastHotkey;
+
+
   PersistentSystemOptions(bool enabled = true)
     : hasLockComputer(enabled),
     hasSwitchUser(enabled),
@@ -130,11 +132,13 @@ struct PersistentSystemOptions final
   static bool WriteFastBootHotkey(bool value);
 };
 
+
+
 bool getActiveConsoleId(LPDWORD id) {
   PWTS_SESSION_INFO sessioninfo;
   DWORD count;
 
-  if (!WTSEnumerateSessions(WTS_CURRENT_SERVER_HANDLE, 0, 1, &sessioninfo, &count))
+  if (!WTSEnumerateSessions (WTS_CURRENT_SERVER_HANDLE, 0, 1, &sessioninfo, &count))
     return FALSE;
 
   // Ok, now find the active session
@@ -151,30 +155,27 @@ bool getActiveConsoleId(LPDWORD id) {
   return TRUE;
 }
 
-char* getSid() {
+WCHAR* getSid() {
 
   DWORD sessionid;
   DWORD usersize = 0;
-  char* username;
-  bool error = false;
+  WCHAR* username;
 
   if (!getActiveConsoleId(&sessionid)) {
     //error("WTSEnumerateSessions failed: %ld", GetLastError());
-    error = true;
   } else {
     //info("WTSEnumerateSessions got active session: %d", sessionid);
   }
 
   if (!WTSQuerySessionInformation(WTS_CURRENT_SERVER_HANDLE, sessionid, WTSUserName, &username, &usersize)) {
     //error("WTSQuerySessionInformation failed: %ld", GetLastError());
-    error = true;
   } else {
     //info("WTSQuerySessionInformation got user: %s", username);
   }
 
   PSID sid = NULL;
   DWORD sid_size = 0;
-  char* domain = NULL;
+  LPWSTR domain = NULL;
   DWORD domain_size = 0;
   SID_NAME_USE use;
 
@@ -182,13 +183,12 @@ char* getSid() {
   if(!LookupAccountName(NULL, username, sid, &sid_size, domain, &domain_size, &use)) {
     if (GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
       //error("LookupAccountName error while getting buffer size: %ld", GetLastError());
-      error = true;
     }
   }
 
   try {
     sid = (PSID) LocalAlloc(LMEM_FIXED, sid_size);
-    domain = (char*) malloc(domain_size * sizeof(char));
+    domain = (LPWSTR) malloc(domain_size * sizeof(LPWSTR));
     if ( !sid || !domain ) {
       throw(0);
     }
@@ -200,37 +200,49 @@ char* getSid() {
     LocalFree(sid);
     sid = NULL;
     //error("LookupAccountName error while getting actual data: %ld", GetLastError());
-    error = true;
   }
 
-  char* string_sid;
+  WCHAR* string_sid;
   if(!ConvertSidToStringSid(sid, &string_sid)) {
     //error("Could not convert to string from SID");
-    error = true;
   }
 
   // do something with error
   return string_sid;
 }
 
+std::wstring s2ws(const std::string& str)
+{
+    int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
+    std::wstring wstrTo( size_needed, 0 );
+    MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstrTo[0], size_needed);
+    return wstrTo;
+}
+
 PersistentSystemOptions PersistentSystemOptions::ReadSystemSettings()
 {
-  char *sid = getSid();
-  std::string system = "\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System";
-  std::string explorer = "\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer";
-  std::string power = "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power";
+  WCHAR *sid_w = getSid();
+
+    std::wstring sid_ws(sid_w);
+// your new String
+   // std::string sid_str(sid_ws.begin(), sid_ws.end());
+   // const char*sid=sid_str.c_str();
+
+  std::wstring system = s2ws("\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System");
+  std::wstring explorer = s2ws("\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer");
+  std::wstring power = s2ws("SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power");
 
   //if(! sid = getSid()) {
   //  return false;
   //}
 
   PersistentSystemOptions retval;
-  retval.hasChangePassword = !ReadRegistryKey(HKEY_USERS, _T(sid + system), _T("DisableChangePassword"), false);
-  retval.hasLockComputer = !ReadRegistryKey(HKEY_USERS, _T(sid + system), _T("DisableLockWorkstation"), false);
-  retval.hasLogOff = !ReadRegistryKey(HKEY_USERS, _T(sid + explorer), _T("NoLogoff"), false);
+  retval.hasChangePassword = !ReadRegistryKey(HKEY_USERS, sid_ws + system, _T("DisableChangePassword"), false);
+  retval.hasLockComputer = !ReadRegistryKey(HKEY_USERS, sid_ws + system, _T("DisableLockWorkstation"), false);
+  retval.hasLogOff = !ReadRegistryKey(HKEY_USERS, sid_ws + explorer, _T("NoLogoff"), false);
   retval.hasSwitchUser = !ReadRegistryKey(HKEY_LOCAL_MACHINE, _T("Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System"), _T("HideFastUserSwitching"), false);
-  retval.hasTaskManager = !ReadRegistryKey(HKEY_USERS, _T(sid + system), _T("DisableTaskMgr"), false);
-  retval.hasPower = !ReadRegistryKey(HKEY_USERS, _T(sid + explorer), _T("NoClose"), false);
+  retval.hasTaskManager = !ReadRegistryKey(HKEY_USERS, sid_ws + system, _T("DisableTaskMgr"), false);
+  retval.hasPower = !ReadRegistryKey(HKEY_USERS, sid_ws + explorer, _T("NoClose"), false);
   retval.hasFilterKeysHotkey = ReadFilterKeysHotkey();
   retval.hasMouseKeysHotkey = ReadMouseKeysHotkey();
   retval.hasStickyKeysHotkey = ReadStickyKeysHotkey();
@@ -243,26 +255,29 @@ PersistentSystemOptions PersistentSystemOptions::ReadSystemSettings()
 bool PersistentSystemOptions::WriteSystemSettings() const
 {
   bool allWorked = true;
-  char* sid = getSid();
-  std::string system = "\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System";
-  std::string explorer = "\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer";
-  std::string power = "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power";
+  WCHAR* sid_w = getSid();
+
+
+    std::wstring sid_ws(sid_w);
+  std::wstring system = s2ws("\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System");
+  std::wstring explorer = s2ws("\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer");
+  std::wstring power = s2ws("SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power");
 
   //if(!sid = getSid()) {
   //  return false;
   //}
 
-  if(!WriteRegistryKey(HKEY_USERS, _T(sid + system), _T("DisableChangePassword"), !hasChangePassword)) {
+  if(!WriteRegistryKey(HKEY_USERS,sid_w + system, _T("DisableChangePassword"), !hasChangePassword)) {
     allWorked = false;
     Tcout << _T("Error DisableChangePassword") << std::endl;
   }
 
-  if(!WriteRegistryKey(HKEY_USERS, _T(sid + system), _T("DisableLockWorkstation"), !hasLockComputer)) {
+  if(!WriteRegistryKey(HKEY_USERS, sid_w + system, _T("DisableLockWorkstation"), !hasLockComputer)) {
     allWorked = false;
     Tcout << _T("Error DisableLockWorkstation") << std::endl;
   }
 
-  if(!WriteRegistryKey(HKEY_USERS, _T(sid + explorer), _T("NoLogoff"), !hasLogOff)) {
+  if(!WriteRegistryKey(HKEY_USERS, sid_w + explorer, _T("NoLogoff"), !hasLogOff)) {
     allWorked = false;
     Tcout << _T("Error NoLogoff") << std::endl;
   }
@@ -274,14 +289,14 @@ bool PersistentSystemOptions::WriteSystemSettings() const
 
 #ifndef DEBUG
 
-  if(!WriteRegistryKey(HKEY_USERS, _T(sid + system), _T("DisableTaskMgr"), !hasTaskManager)) {
+  if(!WriteRegistryKey(HKEY_USERS, sid_w + system, _T("DisableTaskMgr"), !hasTaskManager)) {
     allWorked = false;
     Tcout << _T("Error DisableTaskMgr") << std::endl;
   }
 
 #endif // DEBUG
 
-  if(!WriteRegistryKey(HKEY_USERS, _T(sid + explorer), _T("NoClose"), !hasPower)) {
+  if(!WriteRegistryKey(HKEY_USERS, sid_w + explorer, _T("NoClose"), !hasPower)) {
     allWorked = false;
     Tcout << _T("Error NoClose") << std::endl;
   }
@@ -310,7 +325,7 @@ bool PersistentSystemOptions::WriteSystemSettings() const
     allWorked = false;
     Tcout << _T("Error HighContrastHotkey") << std::endl;
   }
-  
+
  if(!WriteRegistryKey(HKEY_LOCAL_MACHINE, _T("SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power"), _T("HiberbootEnabled"), hasFastBootHotKey)) {
     allWorked = false;
     Tcout << _T("Error FastBootHotKey") << std::endl;
@@ -502,69 +517,82 @@ bool PersistentSystemOptions::WriteHighContrastHotkey(bool value)
 
 PersistentSystemOptions PersistentSystemOptions::ReadFromStorage()
 {
-  char* sid = getSid();
+  WCHAR *sid_w = getSid();
+
+    std::wstring sid_ws(sid_w);
+// your new String
+    std::string sid_str(sid_ws.begin(), sid_ws.end());
+   // const char*sid=sid_str.c_str();
+
   std::string options = "\\PersistentSystemOptions";
   std::string sep = "\\";
-  std::string dest = sid + sep + REGISTRY_SETTINGS_LOCATION + options;
+  std::string dest_str = sid_str + sep + REGISTRY_SETTINGS_LOCATION + options;
+    std::wstring dest=s2ws(dest_str);
 
   PersistentSystemOptions retval;
-  retval.hasChangePassword = ReadRegistryKey(HKEY_USERS, _T(dest), _T("hasChangePassword"), true);
-  retval.hasLockComputer = ReadRegistryKey(HKEY_USERS, _T(dest), _T("hasLockComputer"), true);
-  retval.hasLogOff = ReadRegistryKey(HKEY_USERS, _T(dest), _T("hasLogOff"), true);
-  retval.hasSwitchUser = ReadRegistryKey(HKEY_USERS, _T(dest), _T("hasSwitchUser"), true);
-  retval.hasTaskManager = ReadRegistryKey(HKEY_USERS, _T(dest), _T("hasTaskManager"), true);
-  retval.hasPower = ReadRegistryKey(HKEY_USERS, _T(dest), _T("hasPower"), true);
-  retval.hasFilterKeysHotkey = ReadRegistryKey(HKEY_USERS, _T(dest), _T("hasFilterKeysHotkey"), true);
-  retval.hasMouseKeysHotkey = ReadRegistryKey(HKEY_USERS, _T(dest), _T("hasMouseKeysHotkey"), true);
-  retval.hasStickyKeysHotkey = ReadRegistryKey(HKEY_USERS, _T(dest), _T("hasStickyKeysHotkey"), true);
-  retval.hasToggleKeysHotkey = ReadRegistryKey(HKEY_USERS, _T(dest), _T("hasToggleKeysHotkey"), true);
-  retval.hasHighContrastHotkey = ReadRegistryKey(HKEY_USERS, _T(dest), _T("hasHighContrastHotkey"), true);
-  retval.hasFastBootHotKey = ReadRegistryKey(HKEY_USERS, _T(dest), _T("hasFastBootHotkey"), true);
+  retval.hasChangePassword = ReadRegistryKey(HKEY_USERS, dest, _T("hasChangePassword"), true);
+  retval.hasLockComputer = ReadRegistryKey(HKEY_USERS, dest, _T("hasLockComputer"), true);
+  retval.hasLogOff = ReadRegistryKey(HKEY_USERS, dest, _T("hasLogOff"), true);
+  retval.hasSwitchUser = ReadRegistryKey(HKEY_USERS, dest, _T("hasSwitchUser"), true);
+  retval.hasTaskManager = ReadRegistryKey(HKEY_USERS, dest, _T("hasTaskManager"), true);
+  retval.hasPower = ReadRegistryKey(HKEY_USERS, dest, _T("hasPower"), true);
+  retval.hasFilterKeysHotkey = ReadRegistryKey(HKEY_USERS, dest, _T("hasFilterKeysHotkey"), true);
+  retval.hasMouseKeysHotkey = ReadRegistryKey(HKEY_USERS, dest, _T("hasMouseKeysHotkey"), true);
+  retval.hasStickyKeysHotkey = ReadRegistryKey(HKEY_USERS, dest, _T("hasStickyKeysHotkey"), true);
+  retval.hasToggleKeysHotkey = ReadRegistryKey(HKEY_USERS, dest, _T("hasToggleKeysHotkey"), true);
+  retval.hasHighContrastHotkey = ReadRegistryKey(HKEY_USERS, dest, _T("hasHighContrastHotkey"), true);
+  retval.hasFastBootHotKey = ReadRegistryKey(HKEY_USERS, dest, _T("hasFastBootHotkey"), true);
   return retval;
 }
 
 bool PersistentSystemOptions::WriteToStorage() const
 {
-  char* sid = getSid();
+  WCHAR* sid_w = getSid();
+    std::wstring sid_ws(sid_w);
+// your new String
+   std::string sid_str(sid_ws.begin(), sid_ws.end());
+
   std::string options = "\\PersistentSystemOptions";
   std::string sep = "\\";
-  std::string dest = sid + sep + REGISTRY_SETTINGS_LOCATION + options;
+  std::string dest_str = sid_str + sep + REGISTRY_SETTINGS_LOCATION + options;
+  std::wstring dest=s2ws(dest_str);
+
   bool allWorked = true;
 
-  if(!WriteRegistryKey(HKEY_USERS, _T(dest), _T("hasChangePassword"), hasChangePassword))
+  if(!WriteRegistryKey(HKEY_USERS, dest, _T("hasChangePassword"), hasChangePassword))
     allWorked = false;
 
-  if(!WriteRegistryKey(HKEY_USERS, _T(dest), _T("hasLockComputer"), hasLockComputer))
+  if(!WriteRegistryKey(HKEY_USERS, dest, _T("hasLockComputer"), hasLockComputer))
     allWorked = false;
 
-  if(!WriteRegistryKey(HKEY_USERS, _T(dest), _T("hasLogOff"), hasLogOff))
+  if(!WriteRegistryKey(HKEY_USERS, dest, _T("hasLogOff"), hasLogOff))
     allWorked = false;
 
-  if(!WriteRegistryKey(HKEY_USERS, _T(dest), _T("hasSwitchUser"), hasSwitchUser))
+  if(!WriteRegistryKey(HKEY_USERS, dest, _T("hasSwitchUser"), hasSwitchUser))
     allWorked = false;
 
-  if(!WriteRegistryKey(HKEY_USERS, _T(dest), _T("hasTaskManager"), hasTaskManager))
+  if(!WriteRegistryKey(HKEY_USERS, dest, _T("hasTaskManager"), hasTaskManager))
     allWorked = false;
 
-  if(!WriteRegistryKey(HKEY_USERS, _T(dest), _T("hasPower"), hasPower))
+  if(!WriteRegistryKey(HKEY_USERS, dest, _T("hasPower"), hasPower))
     allWorked = false;
 
-  if(!WriteRegistryKey(HKEY_USERS, _T(dest), _T("hasFilterKeysHotkey"), hasFilterKeysHotkey))
+  if(!WriteRegistryKey(HKEY_USERS, dest, _T("hasFilterKeysHotkey"), hasFilterKeysHotkey))
     allWorked = false;
 
-  if(!WriteRegistryKey(HKEY_USERS, _T(dest), _T("hasMouseKeysHotkey"), hasMouseKeysHotkey))
+  if(!WriteRegistryKey(HKEY_USERS, dest, _T("hasMouseKeysHotkey"), hasMouseKeysHotkey))
     allWorked = false;
 
-  if(!WriteRegistryKey(HKEY_USERS, _T(dest), _T("hasStickyKeysHotkey"), hasStickyKeysHotkey))
+  if(!WriteRegistryKey(HKEY_USERS, dest, _T("hasStickyKeysHotkey"), hasStickyKeysHotkey))
     allWorked = false;
 
-  if(!WriteRegistryKey(HKEY_USERS, _T(dest), _T("hasToggleKeysHotkey"), hasToggleKeysHotkey))
+  if(!WriteRegistryKey(HKEY_USERS, dest, _T("hasToggleKeysHotkey"), hasToggleKeysHotkey))
     allWorked = false;
 
-  if(!WriteRegistryKey(HKEY_USERS, _T(dest), _T("hasHighContrastHotkey"), hasHighContrastHotkey))
+  if(!WriteRegistryKey(HKEY_USERS, dest, _T("hasHighContrastHotkey"), hasHighContrastHotkey))
     allWorked = false;
-    
-   if(!WriteRegistryKey(HKEY_USERS, _T(dest), _T("hasFastBootHotkey"), !hasFastBootHotKey))
+
+   if(!WriteRegistryKey(HKEY_USERS, dest, _T("hasFastBootHotkey"), !hasFastBootHotKey))
     allWorked = false;
 
   return allWorked;
@@ -573,7 +601,14 @@ bool PersistentSystemOptions::WriteToStorage() const
 PersistentSystemOptions persistentSystemOptions;
 
 int action_block() {
-  ShowWindow(FindWindow("Shell_TrayWnd",""), SW_HIDE);
+	//FindWindow() need two wchar_t * as args. Compiler make error if you put char* instead
+    std::wstring arg1_string( L"Shell_TrayWnd");
+    const wchar_t* arg1 = arg1_string.c_str();
+
+    std::wstring arg2_string( L"");
+    const wchar_t* arg2 = arg2_string.c_str();
+
+  ShowWindow(FindWindow(arg1,arg2), SW_HIDE);
   bool succeded = PersistentSystemOptions::AllDisabled().WriteSystemSettings();
   if(verbose)
   {
@@ -588,7 +623,14 @@ int action_block() {
 }
 
 int action_unblock() {
-  ShowWindow(FindWindow("Shell_TrayWnd",""), SW_SHOW);
+	//FindWindow() need two wchar_t * as args. Compiler make error if you put char* instead
+    std::wstring arg1_string( L"Shell_TrayWnd");
+    const wchar_t* arg1 = arg1_string.c_str();
+
+    std::wstring arg2_string( L"");
+    const wchar_t* arg2 = arg2_string.c_str();
+
+  ShowWindow(FindWindow(arg1,arg2), SW_SHOW);
   bool succeded = PersistentSystemOptions::AllEnabled().WriteSystemSettings();
   if(verbose)
   {
@@ -609,7 +651,15 @@ int action_dump() {
 }
 
 int action_force_unblock() {
-	ShowWindow(FindWindow("Shell_TrayWnd",""), SW_SHOW);
+	//FindWindow() need two wchar_t * as args. Compiler make error if you put char* instead
+    std::wstring arg1_string( L"Shell_TrayWnd");
+    const wchar_t* arg1 = arg1_string.c_str();
+
+    std::wstring arg2_string( L"");
+    const wchar_t* arg2 = arg2_string.c_str();
+
+  ShowWindow(FindWindow(arg1,arg2), SW_SHOW);
+
   bool succeded = PersistentSystemOptions::AllEnabled().WriteSystemSettings();
   if(verbose)
   {
