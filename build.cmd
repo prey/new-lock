@@ -48,9 +48,10 @@ zip lock-screen.zip -r external_libs res build.cmd *.cpp *.c *.h *.cbp *.rc bin
 @md obj\Debug 2>NUL
 windres -DDEBUG -J rc -O coff -i lock-screen.rc -o obj\Debug\lock-screen.res
 g++ -m64 -Wall -std=c++11 -municode -g -DDEBUG -c main.cpp -o obj\Debug\main.o
+g++ -m64 -Wall -std=c++11 -municode -g -DDEBUG -c persistent.cpp -o obj\Debug\persistent.o
 gcc -m64 -Wall -municode -g -DDEBUG -c md5.c -o obj\Debug\md5.o
 @md bin\Debug 2>NUL
-g++ -m64 -Lexternal_libs -o bin\Debug\lock-screen.exe obj\Debug\main.o obj\Debug\md5.o obj\Debug\lock-screen.res -municode -static -lgdi32 -luser32 -lkernel32 -lcomctl32 -lole32 -lpropsys_x64
+g++ -m64 -Lexternal_libs -o bin\Debug\new-prey-lock.exe obj\Debug\main.o obj\Debug\persistent.o obj\Debug\md5.o obj\Debug\lock-screen.res -municode -static -lgdi32 -luser32 -lkernel32 -lcomctl32 -lole32 -lpropsys_x64 -lWtsApi32
 @goto parseargs
 
 :Release64
@@ -58,9 +59,10 @@ g++ -m64 -Lexternal_libs -o bin\Debug\lock-screen.exe obj\Debug\main.o obj\Debug
 @md obj\Release 2>NUL
 windres -J rc -O coff -i lock-screen.rc -o obj\Release\lock-screen.res
 g++ -m64 -Wall -std=c++11 -municode -O2 -c main.cpp -o obj\Release\main.o
+g++ -m64 -Wall -std=c++11 -municode -O2 -c persistent.cpp -o obj\Release\persistent.o
 gcc -m64 -Wall -municode -O2 -c md5.c -o obj\Release\md5.o
 @md bin\Release 2>NUL
-g++ -m64 -Lexternal_libs -o bin\Release\lock-screen.exe obj\Release\main.o obj\Release\md5.o obj\Release\lock-screen.res -municode -static -s -lgdi32 -luser32 -lkernel32 -lcomctl32 -lole32 -lpropsys_x64
+g++ -m64 -Lexternal_libs -o bin\Release\new-prey-lock.exe obj\Release\main.o obj\Release\persistent.o obj\Release\md5.o obj\Release\lock-screen.res -municode -static -s -lgdi32 -luser32 -lkernel32 -lcomctl32 -lole32 -lpropsys_x64 -lWtsApi32
 @goto parseargs
 
 :Debug32
@@ -68,18 +70,19 @@ g++ -m64 -Lexternal_libs -o bin\Release\lock-screen.exe obj\Release\main.o obj\R
 @md obj\Debug-x86 2>NUL
 windres -DDEBUG -J rc -O coff -i lock-screen.rc -o obj\Debug-x86\lock-screen.res
 g++ -m32 -Wall -std=c++11 -municode -g -DDEBUG -c main.cpp -o obj\Debug-x86\main.o
+g++ -m32 -Wall -std=c++11 -municode -g -DDEBUG -c persistent.cpp -o obj\Debug-x86\persistent.o
 gcc -m32 -Wall -municode -g -DDEBUG -c md5.c -o obj\Debug-x86\md5.o
 @md bin\Debug-x86 2>NUL
-g++ -m32 -Lexternal_libs -o bin\Debug-x86\lock-screen.exe obj\Debug-x86\main.o obj\Debug-x86\md5.o obj\Debug-x86\lock-screen.res -municode -static -lgdi32 -luser32 -lkernel32 -lcomctl32 -lole32 -lpropsys_x86
+g++ -m32 -Lexternal_libs -o bin\Debug-x86\new-prey-lock.exe obj\Debug-x86\main.o obj\Debug-x86\persistent.o obj\Debug-x86\md5.o obj\Debug-x86\lock-screen.res -municode -static -lgdi32 -luser32 -lkernel32 -lcomctl32 -lole32 -lpropsys_x86 -lWtsApi32
 @goto parseargs
 
 :Release32
 @shift
 @md obj\Release-x86 2>NUL
 windres -J rc -O coff -i lock-screen.rc -o obj\Release-x86\lock-screen.res
-g++ -m32 --std=c++11 -Lexternal_libs -c persistent.cpp -o obj\Release-x86\persistent.o -static -Os -ffunction-sections -fdata-sections -Wl,--gc-sections -lpropsys_x86 -w -lwtsapi32 -luserenv
+g++ -m32 -Wall -std=c++11 -municode -O2 -c persistent.cpp -o obj\Release-x86\persistent.o
 g++ -m32 -Wall -std=c++11 -municode -O2 -c main.cpp -o obj\Release-x86\main.o
 gcc -m32 -Wall -municode -O2 -c md5.c -o obj\Release-x86\md5.o
 @md bin\Release-x86 2>NUL
-g++ -m32 -Lexternal_libs -o bin\Release-x86\new-prey-lock.exe obj\Release-x86\main.o obj\Release-x86\md5.o obj\Release-x86\persistent.o obj\Release-x86\lock-screen.res -municode -static -s -lgdi32 -luser32 -lkernel32 -lcomctl32 -lole32 -lpropsys_x86 -lwtsapi32 -luserenv
+g++ -m32 -Lexternal_libs -o bin\Release-x86\new-prey-lock.exe obj\Release-x86\main.o obj\Release-x86\persistent.o obj\Release-x86\md5.o obj\Release-x86\lock-screen.res -municode -static -s -lgdi32 -luser32 -lkernel32 -lcomctl32 -lole32 -lpropsys_x86 -lWtsApi32 -lwtsapi32 -luserenv
 @goto parseargs
