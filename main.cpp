@@ -243,6 +243,7 @@ class Application final
     };
     static LRESULT CALLBACK StaticWindowProcedure(HWND window, UINT messageId, WPARAM wParam, LPARAM lParam);
     LRESULT WindowProcedure(Window &window, UINT messageId, WPARAM wParam, LPARAM lParam);
+    static LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
     static LRESULT CALLBACK StaticKeyboardHookProcedure(int nCode, WPARAM wParam, LPARAM lParam);
     static HRESULT EnableWindowSystemTouchGestures(HWND window, bool enabled);
     void EnableTouchKeyboard(Window &parentWindow, bool enabled);
@@ -762,7 +763,7 @@ int Application::operator()()
 
   SetFocus(passwordControl);
 
-  keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, StaticKeyboardHookProcedure, NULL, 0);
+  keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, NULL, 0);
   if(verbose && keyboardHook != NULL)
   {
     Tcout << _T("Installed keyboard hook.") << std::endl;
@@ -777,6 +778,7 @@ int Application::operator()()
 
   for(BOOL retval = GetMessage(&message, NULL, 0, 0); retval != 0; retval = GetMessage(&message, NULL, 0, 0))
   {
+    SetFocus(passwordControl);
     if(retval == -1)
     {
       return 1;
@@ -816,6 +818,40 @@ int Application::operator()()
 
   /* The program return-value is the value that we gave PostQuitMessage() */
   return message.wParam;
+}
+
+//The function responsible for detecting the keystrokes
+LRESULT CALLBACK Application::LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
+{
+  if (nCode < 0)
+      return CallNextHookEx(NULL, nCode, wParam, lParam);
+
+  tagKBDLLHOOKSTRUCT *str = (tagKBDLLHOOKSTRUCT *)lParam;
+
+  switch(str->flags)
+  {
+      case (LLKHF_ALTDOWN):
+          delete str;
+      return 1;
+  }
+
+  if (wParam == WM_KEYDOWN)
+  {
+      switch (str->vkCode)
+      {
+          case VK_RWIN:
+          case VK_LWIN:
+          case VK_LCONTROL:
+          case VK_RCONTROL:
+          case VK_APPS:
+          case VK_SLEEP:
+          case VK_MENU:
+              delete str;
+          return 1;
+      }
+  }
+
+  return CallNextHookEx(NULL, nCode, wParam, lParam);
 }
 
 LRESULT CALLBACK Application::StaticWindowProcedure(HWND hwnd, UINT messageId, WPARAM wParam, LPARAM lParam)
@@ -1461,5 +1497,3 @@ bool Application::IsWow64Process()
 
   return retval ? true : false;
 }
-
-
