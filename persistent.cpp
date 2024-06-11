@@ -258,10 +258,10 @@ bool PersistentSystemOptions::WriteSystemSettings() const
     Tcout << _T("Error DisableChangePassword") << std::endl;
   }
 
-  if(!WriteRegistryKey(HKEY_USERS, _T(sid + system), _T("DisableLockWorkstation"), !hasLockComputer)) {
-    allWorked = false;
-    Tcout << _T("Error DisableLockWorkstation") << std::endl;
-  }
+  // if(!WriteRegistryKey(HKEY_USERS, _T(sid + system), _T("DisableLockWorkstation"), !hasLockComputer)) {
+  //   allWorked = false;
+  //   Tcout << _T("Error DisableLockWorkstation") << std::endl;
+  // }
 
   if(!WriteRegistryKey(HKEY_USERS, _T(sid + explorer), _T("NoLogoff"), !hasLogOff)) {
     allWorked = false;

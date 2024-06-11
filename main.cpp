@@ -763,7 +763,7 @@ int Application::operator()()
 
   SetFocus(passwordControl);
 
-  keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, NULL, 0);
+  keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, StaticKeyboardHookProcedure, NULL, 0);
   if(verbose && keyboardHook != NULL)
   {
     Tcout << _T("Installed keyboard hook.") << std::endl;
@@ -835,13 +835,14 @@ LRESULT CALLBACK Application::LowLevelKeyboardProc(int nCode, WPARAM wParam, LPA
       return 1;
   }
 
-  if (wParam == WM_KEYDOWN)
+  if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN || wParam == WM_HOTKEY)
   {
       switch (str->vkCode)
       {
           case VK_RWIN:
           case VK_LWIN:
           case VK_LCONTROL:
+          case VK_TAB:
           case VK_RCONTROL:
           case VK_APPS:
           case VK_SLEEP:
@@ -1239,6 +1240,7 @@ LRESULT CALLBACK Application::StaticKeyboardHookProcedure(int nCode, WPARAM wPar
     case VK_ESCAPE:
     case VK_LMENU:
     case VK_RMENU:
+    case 0x48:
     case VK_LWIN:
     case VK_RWIN:
     case VK_LAUNCH_MAIL:
