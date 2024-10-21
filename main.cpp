@@ -45,6 +45,7 @@
 #include "base64.h"
 #include "string_cast.h"
 #include "get_option.h"
+#include <ctime>
 
 
 #define REGISTRY_SETTINGS_LOCATION "Software\\Prey\\lock-screen"
@@ -775,10 +776,29 @@ int Application::operator()()
 
   /* Run the message loop. It will run until GetMessage() returns 0 */
   MSG message;
+  std::time_t time = std::time(0);
+  INPUT Inputs[3] = {0};
 
+  Inputs[0].type = INPUT_MOUSE;
+  Inputs[0].mi.dx = 0; // desired X coordinate
+  Inputs[0].mi.dy = 0; // desired Y coordinate
+  Inputs[0].mi.dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_MOVE;
+
+  Inputs[1].type = INPUT_MOUSE;
+  Inputs[1].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+
+  Inputs[2].type = INPUT_MOUSE;
+  Inputs[2].mi.dwFlags = MOUSEEVENTF_LEFTUP;
+  SetFocus(passwordControl);
+  SendInput(3, Inputs, sizeof(INPUT));
   for(BOOL retval = GetMessage(&message, NULL, 0, 0); retval != 0; retval = GetMessage(&message, NULL, 0, 0))
   {
-    SetFocus(passwordControl);
+    if(difftime(std::time(0), time) >= 10){
+      std::cout << "SET FOCUS!!!!\n";
+      SendInput(3, Inputs, sizeof(INPUT));
+      SetFocus(passwordControl);
+      time = std::time(0);
+    }
     if(retval == -1)
     {
       return 1;
