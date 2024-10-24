@@ -221,15 +221,11 @@ PersistentSystemOptions PersistentSystemOptions::ReadSystemSettings()
   std::string explorer = "\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer";
   std::string power = "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power";
 
-  //if(! sid = getSid()) {
-  //  return false;
-  //}
-
   PersistentSystemOptions retval;
   retval.hasChangePassword = !ReadRegistryKey(HKEY_USERS, _T(sid + system), _T("DisableChangePassword"), false);
   retval.hasLockComputer = !ReadRegistryKey(HKEY_USERS, _T(sid + system), _T("DisableLockWorkstation"), false);
   retval.hasLogOff = !ReadRegistryKey(HKEY_USERS, _T(sid + explorer), _T("NoLogoff"), false);
-  retval.hasSwitchUser = !ReadRegistryKey(HKEY_LOCAL_MACHINE, _T("Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System"), _T("HideFastUserSwitching"), false);
+  retval.hasSwitchUser = !ReadRegistryKey(HKEY_LOCAL_MACHINE, _T(sid + system), _T("HideFastUserSwitching"), false);
   retval.hasTaskManager = !ReadRegistryKey(HKEY_USERS, _T(sid + system), _T("DisableTaskMgr"), false);
   retval.hasPower = !ReadRegistryKey(HKEY_USERS, _T(sid + explorer), _T("NoClose"), false);
   retval.hasFilterKeysHotkey = ReadFilterKeysHotkey();
@@ -237,7 +233,7 @@ PersistentSystemOptions PersistentSystemOptions::ReadSystemSettings()
   retval.hasStickyKeysHotkey = ReadStickyKeysHotkey();
   retval.hasToggleKeysHotkey = ReadToggleKeysHotkey();
   retval.hasHighContrastHotkey = ReadHighContrastHotkey();
-  retval.hasFastBootHotKey = !ReadRegistryKey(HKEY_LOCAL_MACHINE, _T("SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power"), _T("HiberbootEnabled"), false);
+  retval.hasFastBootHotKey = !ReadRegistryKey(HKEY_LOCAL_MACHINE, _T(sid + power), _T("HiberbootEnabled"), false);
   return retval;
 }
 
@@ -249,28 +245,14 @@ bool PersistentSystemOptions::WriteSystemSettings() const
   std::string explorer = "\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer";
   std::string power = "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power";
 
-  //if(!sid = getSid()) {
-  //  return false;
-  //}
-
   if(!WriteRegistryKey(HKEY_USERS, _T(sid + system), _T("DisableChangePassword"), !hasChangePassword)) {
     allWorked = false;
     Tcout << _T("Error DisableChangePassword") << std::endl;
   }
 
-  // if(!WriteRegistryKey(HKEY_USERS, _T(sid + system), _T("DisableLockWorkstation"), !hasLockComputer)) {
-  //   allWorked = false;
-  //   Tcout << _T("Error DisableLockWorkstation") << std::endl;
-  // }
-
   if(!WriteRegistryKey(HKEY_USERS, _T(sid + explorer), _T("NoLogoff"), !hasLogOff)) {
     allWorked = false;
     Tcout << _T("Error NoLogoff") << std::endl;
-  }
-
-  if(!WriteRegistryKey(HKEY_LOCAL_MACHINE, _T("Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System"), _T("HideFastUserSwitching"), !hasSwitchUser)) {
-    allWorked = false;
-    Tcout << _T("Error HideFastUserSwitching") << std::endl;
   }
 
 #ifndef DEBUG
@@ -310,11 +292,6 @@ bool PersistentSystemOptions::WriteSystemSettings() const
   if(!WriteHighContrastHotkey(hasHighContrastHotkey)) {
     allWorked = false;
     Tcout << _T("Error HighContrastHotkey") << std::endl;
-  }
-  
- if(!WriteRegistryKey(HKEY_LOCAL_MACHINE, _T("SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power"), _T("HiberbootEnabled"), hasFastBootHotKey)) {
-    allWorked = false;
-    Tcout << _T("Error FastBootHotKey") << std::endl;
   }
 
   return allWorked;
