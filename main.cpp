@@ -45,7 +45,7 @@
 #include "base64.h"
 #include "string_cast.h"
 #include "get_option.h"
-#include <ctime>
+#include <ctime> 
 
 
 #define REGISTRY_SETTINGS_LOCATION "Software\\Prey\\lock-screen"
@@ -244,7 +244,6 @@ class Application final
     };
     static LRESULT CALLBACK StaticWindowProcedure(HWND window, UINT messageId, WPARAM wParam, LPARAM lParam);
     LRESULT WindowProcedure(Window &window, UINT messageId, WPARAM wParam, LPARAM lParam);
-    static LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
     static LRESULT CALLBACK StaticKeyboardHookProcedure(int nCode, WPARAM wParam, LPARAM lParam);
     static HRESULT EnableWindowSystemTouchGestures(HWND window, bool enabled);
     void EnableTouchKeyboard(Window &parentWindow, bool enabled);
@@ -293,6 +292,7 @@ class Application final
       commandLine(commandLine)
   {
   }
+    bool passwordError = false;
     int operator()();
 };
 
@@ -541,24 +541,6 @@ int Application::operator()()
 
     std::size_t argumentsLeft = args.size() - optionParser.optind;
 
-    /*
-    if(actionSpecificationCount > 0)
-    {
-      if(argumentsLeft > 0)
-      {
-        tooManyArguments = true;
-      }
-    }
-    else if(argumentsLeft > 1)
-    {
-      tooManyArguments = true;
-    }
-    else if(argumentsLeft == 1)
-    {
-      password = args[optionParser.optind];
-
-    }
-    */
     if (argumentsLeft > 1) {
       password = args[1];
       textMessage = args[2];
@@ -840,41 +822,6 @@ int Application::operator()()
   return message.wParam;
 }
 
-//The function responsible for detecting the keystrokes
-LRESULT CALLBACK Application::LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
-{
-  if (nCode < 0)
-      return CallNextHookEx(NULL, nCode, wParam, lParam);
-
-  tagKBDLLHOOKSTRUCT *str = (tagKBDLLHOOKSTRUCT *)lParam;
-
-  switch(str->flags)
-  {
-      case (LLKHF_ALTDOWN):
-          delete str;
-      return 1;
-  }
-
-  if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN || wParam == WM_HOTKEY)
-  {
-      switch (str->vkCode)
-      {
-          case VK_RWIN:
-          case VK_LWIN:
-          case VK_LCONTROL:
-          case VK_TAB:
-          case VK_RCONTROL:
-          case VK_APPS:
-          case VK_SLEEP:
-          case VK_MENU:
-              delete str;
-          return 1;
-      }
-  }
-
-  return CallNextHookEx(NULL, nCode, wParam, lParam);
-}
-
 LRESULT CALLBACK Application::StaticWindowProcedure(HWND hwnd, UINT messageId, WPARAM wParam, LPARAM lParam)
 {
   Application *application = (Application *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
@@ -924,7 +871,7 @@ LRESULT Application::WindowProcedure(Window &window, UINT messageId, WPARAM wPar
               NULL,
               WS_CHILD | WS_VISIBLE | SS_BITMAP | SS_CENTERIMAGE,
               windowCenter.x - 162,
-              windowCenter.y - 253,
+              windowCenter.y - 205,
               324,
               374,
               window.window,
@@ -932,7 +879,7 @@ LRESULT Application::WindowProcedure(Window &window, UINT messageId, WPARAM wPar
               instance,
               NULL);
           SendMessage(backgroundImageControl, STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)backgroundImage);
-          SIZE editSize = {290, 30};
+          SIZE editSize = {300, 38};
           RECT editRect;
           editRect.left = windowCenter.x - editSize.cx / 2;
           editRect.right = editRect.left + editSize.cx;
@@ -1091,6 +1038,24 @@ LRESULT Application::WindowProcedure(Window &window, UINT messageId, WPARAM wPar
             break;
     }
 
+    case WM_CTLCOLOREDIT:
+    {
+        HDC hdcEdit = (HDC)wParam;
+        HWND hEdit = (HWND)lParam;
+
+        // Check if this is the password control and if the error flag is set
+        if (passwordError && hEdit == passwordControl)  
+        {
+            SetTextColor(hdcEdit, RGB(255, 0, 0));  // Set text color to red
+            SetBkColor(hdcEdit, RGB(255, 255, 255));  // Keep background white
+
+            // Optional: Return a brush if needed to handle background color
+            HBRUSH hBrush = CreateSolidBrush(RGB(255, 255, 255));  // White background
+            return (INT_PTR)hBrush;  // Return the brush handle
+        }
+        break;
+    }
+
     case WM_ERASEBKGND:
       return 0;
 
@@ -1117,12 +1082,22 @@ LRESULT Application::WindowProcedure(Window &window, UINT messageId, WPARAM wPar
 
                     if(hashPassword(password) == hashedPassword)
                     {
+                      // Password is correct, reset the error flag
+                      passwordError = false;
+                      SendMessage(backgroundImageControl, STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)backgroundImage);
+                      InvalidateRect(passwordControl, NULL, TRUE);
                       for(auto i : windows)
                       {
                         DestroyWindow(std::get<1>(i).window);
                       }
 
                       return 0;
+                    }
+                    else
+                    {
+                      // Password is incorrect, set the error flag and force a redraw
+                      passwordError = true;
+                      InvalidateRect(passwordControl, NULL, TRUE);  // Force the password input to be redrawn
                     }
 
                     SendMessage(backgroundImageControl, STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)backgroundImageError);
@@ -1260,7 +1235,6 @@ LRESULT CALLBACK Application::StaticKeyboardHookProcedure(int nCode, WPARAM wPar
     case VK_ESCAPE:
     case VK_LMENU:
     case VK_RMENU:
-    case 0x48:
     case VK_LWIN:
     case VK_RWIN:
     case VK_LAUNCH_MAIL:
